@@ -70,6 +70,8 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 5. **Pre-train** — Pretraining metadata CSV (selfies column) + three `.npy` files (same length): `train_pretraining.py`.
 6. **Fine-tune** — One meta CSV (`smiles`, `selfies`, labels) + one NPZ bundling three modalities (graph, text, kg):
 
+**Data and model download.** Pretraining and fine-tuning datasets (including all raw modalities), single-modality embedding files (`graph` / `text` / `kg`), the pretrained SELFormerMM multimodal checkpoint, and fine-tuned task checkpoints are available from the Hugging Face dataset: **[HUBioDataLab/SELFormerMM](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM)**.
+
 <br/>
 
 ## Generating SELFIES
@@ -87,7 +89,7 @@ python3 generate_selfies.py --smiles_dataset=data/input.csv --selfies_dataset=da
 
 ## Generating modality embeddings
 
-You can download precomputed embeddings [here](link), or generate embeddings for your own dataset using the following scripts.
+You can download precomputed embeddings [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/pretraining_datasets), or generate embeddings for your own dataset using the following scripts.
 
 ### Graph (UniMol)
 
@@ -139,7 +141,7 @@ python3 produce_multimodal_embeddings.py \
 ## Training and evaluating models
 
 ### Pre-training
-Generate the SELFIES CSV and single modality embeddings, or download ready-to-use files from [here](link), then train the SELFormerMM multimodal backbone using the following script.
+Generate the SELFIES CSV and single modality embeddings, or download ready-to-use files from [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/pretraining_datasets), then train the SELFormerMM multimodal backbone using the following script.
 
 ```
 python3 train_pretraining.py \
@@ -171,7 +173,7 @@ python3 train_pretraining.py \
 
 ### Fine-tuning
 
-Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets can be found [here](link).
+Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/finetuning_datasets).
 
 **Binary classification example:**
 ```
