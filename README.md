@@ -12,6 +12,25 @@ Molecular representation learning is central to computational drug discovery, ye
 
 <br/>
 
+## Table of contents
+
+- [The Architecture of SELFormerMM](#the-architecture-of-selformermm)
+- [Getting Started](#getting-started)
+- [Data pipeline overview](#data-pipeline-overview)
+- [Generating SELFIES](#generating-selfies)
+- [Generating modality embeddings](#generating-modality-embeddings)
+  - [Graph (UniMol)](#graph-unimol)
+  - [Text (Hugging Face encoder)](#text-hugging-face-encoder)
+  - [KG (DMGI + HeteroData)](#kg-dmgi-heterodata)
+- [Producing multimodal embeddings](#producing-multimodal-embeddings)
+- [Training and evaluating models](#training-and-evaluating-models)
+  - [Pre-training](#pre-training)
+  - [Fine-tuning](#fine-tuning)
+- [Producing predictions with fine-tuned models](#producing-predictions-with-fine-tuned-models)
+- [License](#license)
+
+<br/>
+
 ## The Architecture of SELFormerMM
 SELFormerMM uses four modality-specific branches and a shared projection space that aligns modalities: the sequence path is [SELFormer]—a RoBERTa-based chemical language model. Text uses frozen [SciBERT](https://github.com/allenai/scibert): mean-pooled 768d embeddings of natural language descriptions. Structure uses frozen [Uni-Mol](https://github.com/deepmodeling/Uni-Mol): 512d cls_repr from SMILES-derived 3D conformers. Knowledge uses a pretrained [DMGI model](https://doi.org/10.1609/aaai.v34i04.5985) on [CROssBARv2-KG](https://github.com/HUBioDataLab/CROssBARv2); relation-specific representations of compound nodes are mean-pooled to 128d per compound. Non-linear MLP projection heads (expansion layers, LayerNorm, ReLU, linear map to hidden size H = 768) map graph, text, and KG embeddings into RoBERTa’s space; zero vectors encode missing modalities. SINCERELoss implements multi-view, multi-positive supervised contrastive alignment (InfoNCE-style) so same-molecule views agree and different molecules separate. 
 For downstream evaluation on MoleculeNet, a task-specific head receives the concatenation of the four embeddings (sequence [CLS] plus projected graph, text, and KG).
@@ -84,6 +103,8 @@ Optional: `--output_csv`, `--id_column`, `--gpu_ids=0,1`, `--use_gpu=0` (CPU), `
 python3 generate_text_embeddings.py --input_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --output_npy=data/pretraining_datasets/text_embeddings.npy --text_column=Description --model_name=allenai/scibert_scivocab_uncased --max_length=512 --normalize=1
 ```
 
+<a id="kg-dmgi-heterodata"></a>
+
 ### KG (DMGI + HeteroData)
 
 ```
@@ -94,7 +115,7 @@ python3 generate_kg_embeddings.py --checkpoint_path=/data/models/DMGI/dmgi_model
 
 ## Producing multimodal embeddings
 
-This script loads the pretrained SELFormerMM . Pass the single modality `.npy` files (graph / text / KG), aligned row-wise with the pretraining metadata CSV.
+This script loads the pretrained SELFormerMM. Pass the single modality `.npy` files (graph / text / KG), aligned row-wise with the pretraining metadata CSV.
 
 ```
 python3 produce_multimodal_embeddings.py \
