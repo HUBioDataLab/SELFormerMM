@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from transformers import AutoConfig, AutoTokenizer
 from SELFormerMM.models.multimodal_roberta import MultimodalRoberta
 from SELFormerMM.utils.datasets import PretrainDataset, MultimodalCollator
 from SELFormerMM.utils.embedders import save_npy
+from tqdm.auto import tqdm
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,6 +71,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional ID column for CSV output (e.g., chembl_id).",
     )
+    parser.add_argument(
+        "--no_progress",
+        action="store_true",
+        help="Disable tqdm progress bar.",
+    )
+    parser.add_argument(
+        "--log_every",
+        type=int,
+        default=0,
+        help="If >0 and --no_progress, print every N batches (0 = only start/end).",
+    )
     return parser.parse_args()
 
 
@@ -76,6 +89,14 @@ def _load_optional_npy(path: str | None) -> np.ndarray | None:
     if not path:
         return None
     return np.load(path).astype(np.float32)
+
+
+def _count_nonempty_rows(arr: np.ndarray | None) -> tuple[int, int]:
+    if arr is None:
+        return 0, 0
+    n = len(arr)
+    nz = int((np.linalg.norm(arr, axis=1) > 0).sum()) if arr.ndim == 2 else 0
+    return n, nz
 
 
 def _load_multimodal_checkpoint(pretrained_dir: Path, tokenizer_path: str | None):
@@ -113,22 +134,39 @@ def _load_multimodal_checkpoint(pretrained_dir: Path, tokenizer_path: str | None
 
 def main() -> None:
     args = parse_args()
+    t0 = time.time()
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
 
+    print("[embed] loading CSV...")
     df = pd.read_csv(args.selfies_csv)
     if args.selfies_column not in df.columns:
         raise ValueError(f"Column '{args.selfies_column}' not found.")
     selfies = df[args.selfies_column].fillna("").astype(str).tolist()
+    n_samples = len(selfies)
 
+    print("[embed] loading modality .npy...")
     graph = _load_optional_npy(args.graph_embs)
     text = _load_optional_npy(args.text_embs)
     kg = _load_optional_npy(args.kg_embs)
+    for name, arr in (("graph", graph), ("text", text), ("kg", kg)):
+        if arr is None:
+            print(f"[embed]   {name}: (none → zeros in batch)")
+        else:
+            nr, nz = _count_nonempty_rows(arr)
+            print(f"[embed]   {name}: shape={tuple(arr.shape)} nonzero_rows={nz:,}/{nr:,}")
 
+    print(f"[embed] loading checkpoint: {args.pretrained_multimodal_dir}")
     model, tokenizer = _load_multimodal_checkpoint(
         Path(args.pretrained_multimodal_dir), args.tokenizer_path
     )
     model.to(device)
     model.eval()
+
+    n_steps = (n_samples + args.batch_size - 1) // args.batch_size
+    print(
+        f"[embed] device={device} samples={n_samples:,} batch_size={args.batch_size} "
+        f"batches={n_steps:,} max_len={args.max_len} output_mode={args.output_mode}"
+    )
 
     dataset = PretrainDataset(
         selfies=selfies,
@@ -146,8 +184,18 @@ def main() -> None:
     )
 
     outputs: list[np.ndarray] = []
+    loop = dataloader
+    if not args.no_progress:
+        loop = tqdm(
+            dataloader,
+            desc="Multimodal embeddings",
+            unit="batch",
+            total=n_steps,
+        )
+    batch_idx = 0
+    infer_t0 = time.time()
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in loop:
             logits = model(
                 input_ids=batch["input_ids"].to(device),
                 attention_mask=batch["attention_mask"].to(device),
@@ -164,14 +212,30 @@ def main() -> None:
                 ]
                 combined = torch.cat(chunks, dim=1)
                 outputs.append(combined.detach().cpu().numpy())
+            batch_idx += 1
+            if args.no_progress and args.log_every > 0 and batch_idx % args.log_every == 0:
+                rows_done = min(batch_idx * args.batch_size, n_samples)
+                elapsed = time.time() - infer_t0
+                rate = rows_done / elapsed if elapsed > 0 else 0
+                print(
+                    f"[embed] batch {batch_idx}/{n_steps} rows~{rows_done:,}/{n_samples:,} "
+                    f"({rate:,.0f} samples/s)"
+                )
 
+    infer_sec = time.time() - infer_t0
     if outputs:
         embeddings = np.concatenate(outputs, axis=0)
     else:
         embeddings = np.zeros((0, 0), dtype=np.float32)
 
+    print(
+        f"[embed] inference done in {infer_sec:.1f}s "
+        f"({n_samples / max(infer_sec, 1e-6):,.0f} samples/s) "
+        f"array_shape={tuple(embeddings.shape)}"
+    )
+
     save_npy(Path(args.output_npy), embeddings)
-    print(f"Saved multimodal embeddings to: {args.output_npy}")
+    print(f"[embed] saved: {args.output_npy} (total wall {time.time() - t0:.1f}s)")
 
     if args.output_csv:
         if not args.id_column or args.id_column not in df.columns:
@@ -186,7 +250,7 @@ def main() -> None:
         pd.DataFrame(embeddings, columns=columns).assign(**{args.id_column: ids})[
             [args.id_column] + columns
         ].to_csv(out_csv, index=False)
-        print(f"Saved multimodal embeddings CSV to: {out_csv}")
+        print(f"[embed] saved CSV: {out_csv}")
 
 
 if __name__ == "__main__":
