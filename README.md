@@ -192,7 +192,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=data/models/finetuned_models/classification/bbbp
+  --save_dir=data/models/finetuned/bbbp
 ```
 
 **Multi-label example:**
@@ -212,7 +212,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=data/models/finetuned_models/classification/sider
+  --save_dir=data/models/finetuned/sider
 ```
 **Regression example:**
 ```
@@ -231,7 +231,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=data/models/finetuned_models/regression/freesolv
+  --save_dir=data/models/finetuned/freesolv
 ```
 
 Useful flags: `--config=finetune.json` (inject defaults), `--save_split_csvs=dir`, `--train_frac` / `--val_frac` / `--test_frac`, `--test_eval_every`, `--device=cuda`.
@@ -245,7 +245,7 @@ This script loads the fine-tuned SELFormerMM multimodal backbone and produces pr
 **Binary classification example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned_models/classification/bbbp \
+  --model_dir=data/models/finetuned/bbbp \
   --input_meta_csv=data/finetuning_datasets/classification/bbbp/bbbp.csv \
   --input_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
   --output_csv=data/finetuning_datasets/classification/bbbp/bbbp_predictions.csv \
@@ -259,7 +259,7 @@ python3 predict.py \
 **Multi-label example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned_models/multilabel/sider \
+  --model_dir=data/models/finetuned/sider \
   --input_meta_csv=data/finetuning_datasets/multilabel/sider/sider.csv \
   --input_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
   --output_csv=data/finetuning_datasets/multilabel/sider/sider_predictions.csv \
@@ -272,7 +272,7 @@ python3 predict.py \
 **Regression example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned_models/regression/freesolv \
+  --model_dir=data/models/finetuned/freesolv \
   --input_meta_csv=data/finetuning_datasets/regression/freesolv/freesolv.csv \
   --input_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
   --output_csv=data/finetuning_datasets/regression/freesolv/freesolv_predictions.csv \
