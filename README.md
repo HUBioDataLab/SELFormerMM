@@ -1,287 +1,273 @@
-# SELFormer Multi Modal: Integrating SELFIES, Graph, Text, and Knowledge Graph Modalities for Enhanced Molecular Representation Learning
+# SELFormerMM: multimodal molecular representation learning via SELFIES, structure, text, and knowledge graph integration
 
-Automated computational analysis of the vast chemical space is critical for research areas such as drug discovery and material science. To address the need for compact and meaningful representations of molecular structures, recent efforts have applied natural language processing (NLP) techniques to string-based chemical notations. While most existing models rely on SMILES, its fragility and syntactic constraints often limit robustness and validity during model training. To overcome these limitations, we introduce SELFormer, a transformer-based chemical language model that employs SELFIES—a 100% valid, compact, and expressive molecular notation. Pre-trained on two million drug-like molecules and fine-tuned for downstream molecular property prediction tasks, SELFormer demonstrates superior performance compared to both graph-based and SMILES-based approaches, particularly in predicting aqueous solubility and adverse drug reactions. Visualization of its learned embeddings via dimensionality reduction further shows that even the pre-trained model can effectively capture structural differences between molecules.
-Building upon this foundation, we propose Multimodal SELFormer, an extended framework that integrates four complementary molecular modalities: SELFIES sequences, molecular graph structures, natural language descriptions, and knowledge graph embeddings. Each modality is projected into a shared embedding space through modality-specific projection layers. Using supervised contrastive learning with SINCERE loss, the model learns aligned, semantically rich, and modality-invariant representations. This multimodal design enhances the model’s generalization capability and expressiveness in various classification and regression tasks, including toxicity prediction, solubility estimation, and drug-target interaction assessment. Experimental results show that Multimodal SELFormer consistently outperforms unimodal baselines and produces more informative latent spaces, demonstrating the power of multimodal fusion in molecular representation learning.
+<!-- omit in toc -->
 
-## Model Architecture
+[![license](https://img.shields.io/badge/license-GPLv3-blue.svg)](http://www.gnu.org/licenses/)
 
-The MultimodalRoberta architecture integrates four complementary information sources—RoBERTa text embeddings, graph embeddings, auxiliary text embeddings, and knowledge-graph embeddings—into a unified multimodal representation. The model uses a standard RoBERTa encoder (hidden size 768) to extract the normalized [CLS] embedding from the input text, while three parallel projection networks transform the graph (512-dim), external text (768-dim), and KG (128-dim) embeddings into the same hidden space through deep feed-forward layers with LayerNorm and ReLU activations. Each projection network expands and contracts the embedding dimensionality (×4 → ×6 → ×6 → ×4 → ×1 of 768) to allow rich nonlinear transformation. In the final step, the model concatenates the RoBERTa text embedding with the projected graph, text, and KG embeddings along the batch dimension, producing a combined multimodal feature vector that captures structural, textual, and knowledge-based information in a single architecture.
+Molecular representation learning is central to computational drug discovery, yet most models still rely on a single modality (e.g. sequences or graphs) and cannot easily unify complementary signals such as text and biological interaction networks. **SELFormerMM** addresses this gap as a unified multimodal framework: it integrates SELFIES encodings, 2D molecular graphs, natural-language descriptions, and knowledge-graph embeddings into a shared latent space, building on the transformer-based [SELFormer](https://iopscience.iop.org/article/10.1088/2632-2153/acdb30). Self-supervised pre-training is carried out on a large-scale multimodal dataset of approximately 3 million molecules.
 
-### Data Processing
-You can find all the work related to data processing in the `data` folder. It contains the steps we have taken to preprocess and prepare the data for the multimodal approach.
+<img width="850" alt="Overview of the SELFormerMM framework" src="figure.png">
 
-### Current Model
-Current model that described detailly above can be found in the `model` folder. It also contains the loss function we used,and the accelerator mode where we need to use multiple GPU's since the process took so much efford, its very beneficial to check them out too.
+**Overview of the SELFormerMM framework.** (A) Contrastive multimodal pretraining integrates molecular information from four complementary modalities—SELFIES sequences, structural graphs, textual descriptions, and knowledge graph interactions—processed by modality-specific encoders and projection networks, then aligned in a shared representation space via contrastive learning with the SINCERE loss. (B) Downstream task finetuning adapts the pretrained multimodal backbone for molecular property prediction, using task-specific prediction heads for binary classification, multilabel classification, and regression.
 
----
+<br/>
 
-## Create Environment
+## The Architecture of SELFormerMM
+SELFormerMM uses four modality-specific branches and a shared projection space that aligns modalities: the sequence path is [SELFormer]—a RoBERTa-based chemical language model. Text uses frozen [SciBERT](https://github.com/allenai/scibert): mean-pooled 768d embeddings of natural language descriptions. Structure uses frozen [Uni-Mol](https://github.com/deepmodeling/Uni-Mol): 512d cls_repr from SMILES-derived 3D conformers. Knowledge uses a pretrained [DMGI model](https://doi.org/10.1609/aaai.v34i04.5985) on [CROssBARv2-KG](https://github.com/HUBioDataLab/CROssBARv2); relation-specific representations of compound nodes are mean-pooled to 128d per compound. Non-linear MLP projection heads (expansion layers, LayerNorm, ReLU, linear map to hidden size H = 768) map graph, text, and KG embeddings into RoBERTa’s space; zero vectors encode missing modalities. SINCERELoss implements multi-view, multi-positive supervised contrastive alignment (InfoNCE-style) so same-molecule views agree and different molecules separate. 
+For downstream evaluation on MoleculeNet, a task-specific head receives the concatenation of the four embeddings (sequence [CLS] plus projected graph, text, and KG).
+This repository provides scripts for modality embeddings, pre-training, fine-tuning, and prediction.
 
-We used conda environment while we were working with this project, and we are recommended this environment for users. You can easily create a environment with these commands:
+<br/>
 
-```
-conda create -n SELFormer_env
-conda activate SELFormer_env
-pip install -r requirements.txt
-```
+## Getting Started
 
-## Generating Embeddings - For Pretraining Model
+We recommend **Conda** (or a fresh venv) with **Python 3.10+**. Install PyTorch for your CUDA/CPU setup, then:
 
-SELFIES notations are directly used in this task but other modalities must be embedded before passing to the pretraining phase, so embeddings can be generated using:
-- For Text Embeddings: `text_embedding.py`,
-- For Graph Embeddings:  `graph_embeddning.py`,
-- For Knowledge Graphs Embeddings: `dmgi_model.py`.
-  
-Generating embeddings are valid, with this direction:
-- Change the folder_path's in the code and run the codes, f.e. text embedding:
-
-```
-nohup python text_embedding.py > text_embeddings.txt 2>&1 &
+```bash
+pip install transformers torch selfies pandas numpy tqdm scikit-learn
+# Graph embeddings
+pip install rdkit unimol_tools
+# Scaffold split (fine-tuning)
+pip install chemprop
+# KG embeddings (DMGI + PyG)
+pip install torch-geometric safetensors
 ```
 
-## Pretraining the Multimodal Model
+Clone or copy the repo and ensure the project root is on `PYTHONPATH`:
 
-After generating your available embeddings, you can pretrain the multimodal backbone using  
-`pretrain_modal_with_accelerator.py` located under the `model/` directory.
-
-> **Important:**  
-> You are not required to provide all modalities. Missing modalities can be replaced with zero-filled matrices.  
-> However, every modality you supply must follow the exact same sample ordering.  
-> If the ordering is inconsistent across your SELFIES file and embedding files, the model will receive mismatched inputs and pretraining quality will degrade significantly.
-
----
-
-### Preparing Input Paths
-
-Inside the pretraining script, update the following paths to match the locations of your datasets:
-
-```python
-csv_name    = f"{INPUT_EMBEDDINGS_PATH}/SELFIES.csv"
-csv_name    = read_selfies_column(csv_path=csv_name)
-
-kg_path     = f"{INPUT_EMBEDDINGS_PATH}/KNOWLEDGE_GRAPH.npy"
-text_path   = f"{INPUT_EMBEDDINGS_PATH}/TEXT_normalized.npy"
-graph_path  = f"{INPUT_EMBEDDINGS_PATH}/GRAPH_normalized.npy"
-```
-Notes:
-
-SELFIES.csv contains the textual SELFIES strings.
-
-All other modalities (GRAPH_normalized.npy, TEXT_normalized.npy, KNOWLEDGE_GRAPH.npy) must have the same number of rows and identical indexing.
-
-Missing modalities must be replaced with zero matrices of appropriate shape.
-
-### Running the Pretraining Script
-
-To launch pretraining on a single GPU or CPU:
-
-```python
-nohup python pretrain_model.py > MAIN_TRAIN.log 2>&1 &
+```bash
+cd /path/to/SELFormerMM
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 ```
 
-This runs the training process in the background and logs output to MAIN_TRAIN.log.
+<br/>
 
-### Multi-GPU Training with Accelerate
-If your environment supports distributed training, you can run pretraining on multiple GPUs:
+## Data pipeline overview
 
-```python
-nohup setsid accelerate launch \
-  --num_processes 3 \
-  --mixed_precision "no" \
-  pretrain_modal_with_accelerator.py > MAIN_TRAIN.log 2>&1 &
+1. **SELFIES** — From SMILES CSV: `generate_selfies.py`.
+2. **Graph embeddings** — Same row order as your molecule table: `generate_graph_embeddings.py` → `graph_embeddings.npy`.
+3. **Text embeddings** — Descriptions aligned by row: `generate_text_embeddings.py` → `text_embeddings.npy`.
+4. **KG embeddings** — Compound nodes aligned by row with pre-trained DMGI: `generate_kg_embeddings.py` → `kg_embeddings.npy`.
+5. **Pre-train** — Pretraining metadata CSV (selfies column) + three `.npy` files (same length): `train_pretraining.py`.
+6. **Fine-tune** — One meta CSV (`smiles`, `selfies`, labels) + one NPZ bundling three modalities (graph, text, kg):
+
+<br/>
+
+## Generating SELFIES
+
+```
+python3 generate_selfies.py --smiles_dataset=data/input.csv --selfies_dataset=data/output_with_selfies.csv --smiles_column=smiles
 ```
 
-Adjust the settings as needed:
+* __--smiles_dataset__ — Input CSV path.  
+* __--selfies_dataset__ — Output CSV (adds column `selfies`).  
+* __--smiles_column__ — SMILES column name (default `smiles`).  
+* __--on_error__ — `keep` | `empty` | `raise` for encoder errors.
 
---num_processes: number of GPUs to use
+<br/>
 
---mixed_precision: "no", "fp16", or "bf16" depending on your hardware
+## Generating modality embeddings
 
-## Fine Tuning
+You can download precomputed embeddings [here](link), or generate embeddings for your own dataset using the following scripts.
 
-This repository includes three downstream examples built on top of SELFormer:
+### Graph (UniMol)
 
-BBBP → Binary classification
-
-HIV → Multi-label classification
-
-PDBBind → Regression (continuous affinity prediction)
-
-Each task contains:
-
-A training script → *_{task}.py
-
-A prediction script → *_{task}_prediction.py
-
-Below are short descriptions and instructions for running each example.
-
-1. BBBP — Binary Classification
-
-The BBBP task predicts whether a molecule is blood–brain barrier permeable or not.
-The model uses SELFIES tokens together with graph/text/KG embeddings.
-Training logs ROC-AUC, PRC-AUC, loss curves, etc.
-
-Train
-
-File: bbbp_classification.py
-
-```python
-python bbbp_classification.py \
-  --use_scaffold 1 \
-  --lr 1e-4 \
-  --epochs 100
+```
+python3 generate_graph_embeddings.py --input_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --output_npy=data/pretraining_datasets/graph_embeddings.npy --smiles_column=smiles --batch_size=512 --embedding_dim=512 --normalize=1
 ```
 
-Arguments
+Optional: `--output_csv`, `--id_column`, `--gpu_ids=0,1`, `--use_gpu=0` (CPU), `--batch_timeout_seconds`, `--min_batch_size`.
 
---use_scaffold {0|1} – 1 for scaffold split, 0 for random split
+### Text (Hugging Face encoder)
 
---lr – learning rate
-
---epochs – number of epochs
-
-Note: Dataset + embedding paths inside the script are currently hard-coded.
-Update them to match your directory layout.
-
-Predict
-
-File: bbbp_prediction.py
-
-Predict using a CSV:
-
-```python 
-python bbbp_prediction.py \
-  --model_path path/to/multimodal_BBBP_classifier_sd.pt \
-  --tokenizer_path path/to/BBBP_tokenizer_dir \
-  --input_file data/bbbp_test_smiles.csv \
-  --output_dir outputs/bbbp_preds
+```
+python3 generate_text_embeddings.py --input_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --output_npy=data/pretraining_datasets/text_embeddings.npy --text_column=Description --model_name=allenai/scibert_scivocab_uncased --max_length=512 --normalize=1
 ```
 
-Predict a single SMILES:
+### KG (DMGI + HeteroData)
 
-```python
-python bbbp_prediction.py \
-  --model_path path/to/multimodal_BBBP_classifier_sd.pt \
-  --tokenizer_path path/to/BBBP_tokenizer_dir \
-  --smiles "CCOC(=O)NCCC1=CNc2c1cc(OC)cc2" \
-  --output_dir outputs/bbbp_single
+```
+python3 generate_kg_embeddings.py --checkpoint_path=/data/models/DMGI/dmgi_model.pt --heterodata_path=/data/pretraining_datasets/selformermm_kg_heterodata.pt --output_npy=data/pretraining_datasets/kg_embeddings.npy --align_meta_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --align_meta_column=chembl_id --node_type=Compound --out_channels=128 --normalize=1
 ```
 
-Outputs
+<br/>
 
-predictions.csv — predicted permeability (0/1)
+## Producing multimodal embeddings
 
-embeddings.npy — learned multimodal embeddings for each sample
+This script loads the pretrained SELFormerMM . Pass the single modality `.npy` files (graph / text / KG), aligned row-wise with the pretraining metadata CSV.
 
-2. HIV — Multi-Label Classification
-
-The HIV task predicts HIV activity labels.
-The script handles invalid SMILES using RDKit, converts valid ones to SELFIES, loads graph/text/KG embeddings, and trains a classification head using BCE-with-logits with pos_weight to handle imbalance.
-
-Train
-
-Files:
-
-hiv_classification.py
-
-hiv_classification_arc.py (architecture-extended version)
-
-```python
-python hiv_classification.py \
-  --use_scaffold 1 \
-  --lr 3e-4 \
-  --epochs 50
+```
+python3 produce_multimodal_embeddings.py \
+  --selfies_csv=data/pretraining_datasets/pretraining_dataset_meta.csv \
+  --selfies_column=selfies \
+  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --graph_embs=data/pretraining_datasets/graph_embeddings.npy \
+  --text_embs=data/pretraining_datasets/text_embeddings.npy \
+  --kg_embs=data/pretraining_datasets/kg_embeddings.npy \
+  --output_npy=data/multimodal_embeddings.npy \
+  --output_mode=concat \
+  --batch_size=32 \
+  --max_len=512
 ```
 
-Arguments
+* __--output_mode__ — `concat`: `(N, 4*D)`; `stacked`: `(4N, D)`.  
+* __--output_csv__ / __--id_column__ — Optional CSV with ID + embedding columns.
 
---use_scaffold – scaffold or random split
+<br/>
 
---lr – learning rate
+## Training and evaluating models
 
---epochs – number of epochs
+### Pre-training
+Generate the SELFIES CSV and single modality embeddings, or download ready-to-use files from [here](link), then train the SELFormerMM multimodal backbone using the following script.
 
-Predict
-
-File: hiv_prediction.py
-
-From CSV:
-
-```python
-python hiv_prediction.py \
-  --model_path path/to/hiv_classifier_sd.pt \
-  --tokenizer_path path/to/HIV_tokenizer_dir \
-  --input_file data/hiv_test_smiles.csv \
-  --output_dir outputs/hiv_preds
+```
+python3 train_pretraining.py \
+  --selfies_csv=data/pretraining_datasets/pretraining_dataset_meta.csv \
+  --selfies_column=selfies \
+  --graph_embs=data/pretraining_datasets/graph_embeddings.npy \
+  --text_embs=data/pretraining_datasets/text_embeddings.npy \
+  --kg_embs=data/pretraining_datasets/kg_embeddings.npy \
+  --model_path=HUBioDataLab/SELFormer \
+  --tokenizer_path=HUBioDataLab/SELFormer \
+  --save_dir=/data/models/SELFormerMM \
+  --batch_size=40 \
+  --max_len=512 \
+  --epochs=267 \
+  --lr=2e-5 \
+  --val_frac=0.1 \
+  --save_every=1 \
+  --save_embeddings=data/final_pretrain_embeddings.npy
 ```
 
-Single SMILES:
+* __--selfies_csv__ — CSV with SELFIES column (required).  
+* __--graph_embs__ / __--text_embs__ / __--kg_embs__ — Optional `.npy`; omitted modalities are zero-filled.  
+* __--model_path__ — HF model id/local directory of unimodal SELFormer.
+* __--tokenizer_path__ — HF tokenizer id/local directory of unimodal SELFormer.
+* __--save_dir__ — Checkpoints under `epoch_XXX/` plus final `pytorch_model.bin` + config + tokenizer.
+* __--save_embeddings__ — Optional memmap `.npy` for all rows after training.
 
-```python
-python hiv_prediction.py \
-  --model_path path/to/hiv_classifier_sd.pt \
-  --tokenizer_path path/to/HIV_tokenizer_dir \
-  --smiles "CC1=C(C(=O)NC(=O)N1)N" \
-  --output_dir outputs/hiv_single
+<br/>
+
+### Fine-tuning
+
+Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets can be found [here](link).
+
+**Binary classification example:**
+```
+python3 train_finetuning.py \
+  --dataset_meta_csv=data/finetuning_datasets/classification/bbbp/bbbp.csv \
+  --dataset_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
+  --model_path=HUBioDataLab/SELFormer \
+  --tokenizer_path=HUBioDataLab/SELFormer \
+  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --task_type=binary \
+  --use_scaffold=1 \
+  --batch_size=8 \
+  --max_len=128 \
+  --epochs=50 \
+  --backbone_lr=1e-5 \
+  --head_lr=1e-4 \
+  --weight_decay=0.1 \
+  --checkpoint_every=25 \
+  --save_dir=/data/models/finetuned_models/classification/bbbp
 ```
 
-Outputs
-
-predictions.csv — multi-label predictions (sigmoid + thresholding)
-
-embeddings.npy — multimodal latent vectors
-
-3. PDBBind — Regression
-Task Summary
-
-The PDBBind example predicts continuous binding affinities for protein–ligand complexes.
-The model uses SELFIES + external graph/text/KG embeddings and fine-tunes a regression head on top of the multimodal backbone.
-
-Train
-
-File: regression_pdbbind_with_wandb.py
-
-```python
-python regression_pdbbind_with_wandb.py \
-  --lr 2e-5 \
-  --epochs 100
+**Multi-label example:**
+```
+python3 train_finetuning.py \
+  --dataset_meta_csv=data/finetuning_datasets/classification/sider/sider.csv \
+  --dataset_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
+  --model_path=HUBioDataLab/SELFormer \
+  --tokenizer_path=HUBioDataLab/SELFormer \
+  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --task_type=multilabel \
+  --use_scaffold=1 \
+  --batch_size=8 \
+  --max_len=128 \
+  --epochs=50 \
+  --backbone_lr=1e-5 \
+  --head_lr=1e-4 \
+  --weight_decay=0.1 \
+  --checkpoint_every=25 \
+  --save_dir=/data/models/finetuned_models/classification/sider
+```
+**Regression example:**
+```
+python3 train_finetuning.py \
+  --dataset_meta_csv=data/finetuning_datasets/regression/freesolv/freesolv.csv \
+  --dataset_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
+  --model_path=HUBioDataLab/SELFormer \
+  --tokenizer_path=HUBioDataLab/SELFormer \
+  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --task_type=regression \
+  --use_scaffold=1 \
+  --batch_size=8 \
+  --max_len=128 \
+  --epochs=50 \
+  --backbone_lr=1e-5 \
+  --head_lr=1e-4 \
+  --weight_decay=0.1 \
+  --checkpoint_every=25 \
+  --save_dir=/data/models/finetuned_models/regression/freesolv
 ```
 
-Arguments
+Useful flags: `--config=finetune.json` (inject defaults), `--save_split_csvs=dir`, `--train_frac` / `--val_frac` / `--test_frac`, `--test_eval_every`, `--device=cuda`.
 
---lr – learning rate
+<br/>
 
---epochs – number of epochs
+## Producing predictions with fine-tuned models
 
-Predict
+This script loads the fine-tuned SELFormerMM multimodal backbone and produces predictions on a new dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets and our finetuned models can be found [here](link).
 
-File: pdbbind_prediction.py
-
-Using CSV + embeddings:
-
-```python
-python pdbbind_prediction.py \
-  --model_path path/to/pdbbind_regressor_sd.pt \
-  --tokenizer_path path/to/epoch_266/hf \
-  --input_file data/pdbbind_test_smiles.csv \
-  --graph_embs data/pdbbind_graph_embs.npy \
-  --text_embs data/pdbbind_text_embs.npy \
-  --kg_embs data/pdbbind_kg_embs.npy \
-  --output_dir outputs/pdbbind_preds
+**Binary classification example:**
+```
+python3 predict.py \
+  --model_dir=/data/models/finetuned_models/classification/bbbp \
+  --input_meta_csv=data/finetuning_datasets/classification/bbbp/bbbp.csv \
+  --input_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
+  --output_csv=data/finetuning_datasets/classification/bbbp/bbbp_predictions.csv \
+  --task_type=binary \
+  --num_labels=2 \
+  --batch_size=16 \
+  --max_len=512 \
+  --output_id_column=smiles
 ```
 
-Single SMILES (no external embeddings):
-
-```python
-python pdbbind_prediction.py \
-  --model_path path/to/pdbbind_regressor_sd.pt \
-  --tokenizer_path path/to/epoch_266/hf \
-  --smiles "CC(C)CC1=CC(=O)NC(=O)N1" \
-  --output_dir outputs/pdbbind_single
+**Multi-label example:**
+```
+python3 predict.py \
+  --model_dir=/data/models/finetuned_models/multilabel/sider \
+  --input_meta_csv=data/finetuning_datasets/multilabel/sider/sider.csv \
+  --input_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
+  --output_csv=data/finetuning_datasets/multilabel/sider/sider_predictions.csv \
+  --task_type=multilabel \
+  --batch_size=16 \
+  --max_len=512 \
+  --output_id_column=smiles
 ```
 
-Outputs
+**Regression example:**
+```
+python3 predict.py \
+  --model_dir=/data/models/finetuned_models/regression/freesolv \
+  --input_meta_csv=data/finetuning_datasets/regression/freesolv/freesolv.csv \
+  --input_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
+  --output_csv=data/finetuning_datasets/regression/freesolv/freesolv_predictions.csv \
+  --task_type=regression \
+  --num_labels=1 \
+  --batch_size=16 \
+  --max_len=512 \
+  --output_id_column=smiles
+```
 
-regression_predictions.csv — continuous affinity predictions
+<br/>
 
-embeddings.npy — embeddings used by the regressor
+## License
+
+Copyright (C) 2026 HUBioDataLab
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If not, see http://www.gnu.org/licenses/.
