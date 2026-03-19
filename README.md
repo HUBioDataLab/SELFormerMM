@@ -240,7 +240,7 @@ Useful flags: `--config=finetune.json` (inject defaults), `--save_split_csvs=dir
 
 ## Producing predictions with fine-tuned models
 
-This script loads the fine-tuned SELFormerMM multimodal backbone and produces predictions on a new dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets and our finetuned models can be found [here](link).
+This script loads the fine-tuned SELFormerMM multimodal backbone and produces predictions on a new dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets and our finetuned models can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned).
 
 **Binary classification example:**
 ```
