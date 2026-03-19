@@ -110,7 +110,7 @@ python3 generate_text_embeddings.py --input_csv=data/pretraining_datasets/pretra
 ### KG (DMGI + HeteroData)
 
 ```
-python3 generate_kg_embeddings.py --checkpoint_path=/data/models/DMGI/dmgi_model.pt --heterodata_path=/data/pretraining_datasets/selformermm_kg_heterodata.pt --output_npy=data/pretraining_datasets/kg_embeddings.npy --align_meta_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --align_meta_column=chembl_id --node_type=Compound --out_channels=128 --normalize=1
+python3 generate_kg_embeddings.py --checkpoint_path=data/models/DMGI/dmgi_model.pt --heterodata_path=data/pretraining_datasets/selformermm_kg_heterodata.pt --output_npy=data/pretraining_datasets/kg_embeddings_new.npy --align_meta_csv=data/pretraining_datasets/pretraining_dataset_meta.csv --align_meta_column=chembl_id --node_type=Compound --out_channels=128 --normalize=1
 ```
 
 <br/>
@@ -123,7 +123,7 @@ This script loads the pretrained SELFormerMM. Pass the single modality `.npy` fi
 python3 produce_multimodal_embeddings.py \
   --selfies_csv=data/pretraining_datasets/pretraining_dataset_meta.csv \
   --selfies_column=selfies \
-  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --pretrained_multimodal_dir=data/models/SELFormerMM \
   --graph_embs=data/pretraining_datasets/graph_embeddings.npy \
   --text_embs=data/pretraining_datasets/text_embeddings.npy \
   --kg_embs=data/pretraining_datasets/kg_embeddings.npy \
@@ -152,7 +152,7 @@ python3 train_pretraining.py \
   --kg_embs=data/pretraining_datasets/kg_embeddings.npy \
   --model_path=HUBioDataLab/SELFormer \
   --tokenizer_path=HUBioDataLab/SELFormer \
-  --save_dir=/data/models/SELFormerMM \
+  --save_dir=data/models/SELFormerMM \
   --batch_size=40 \
   --max_len=512 \
   --epochs=267 \
@@ -182,7 +182,7 @@ python3 train_finetuning.py \
   --dataset_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
   --model_path=HUBioDataLab/SELFormer \
   --tokenizer_path=HUBioDataLab/SELFormer \
-  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=binary \
   --use_scaffold=1 \
   --batch_size=8 \
@@ -192,7 +192,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=/data/models/finetuned_models/classification/bbbp
+  --save_dir=data/models/finetuned_models/classification/bbbp
 ```
 
 **Multi-label example:**
@@ -202,7 +202,7 @@ python3 train_finetuning.py \
   --dataset_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
   --model_path=HUBioDataLab/SELFormer \
   --tokenizer_path=HUBioDataLab/SELFormer \
-  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=multilabel \
   --use_scaffold=1 \
   --batch_size=8 \
@@ -212,7 +212,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=/data/models/finetuned_models/classification/sider
+  --save_dir=data/models/finetuned_models/classification/sider
 ```
 **Regression example:**
 ```
@@ -221,7 +221,7 @@ python3 train_finetuning.py \
   --dataset_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
   --model_path=HUBioDataLab/SELFormer \
   --tokenizer_path=HUBioDataLab/SELFormer \
-  --pretrained_multimodal_dir=/data/models/SELFormerMM \
+  --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=regression \
   --use_scaffold=1 \
   --batch_size=8 \
@@ -231,7 +231,7 @@ python3 train_finetuning.py \
   --head_lr=1e-4 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
-  --save_dir=/data/models/finetuned_models/regression/freesolv
+  --save_dir=data/models/finetuned_models/regression/freesolv
 ```
 
 Useful flags: `--config=finetune.json` (inject defaults), `--save_split_csvs=dir`, `--train_frac` / `--val_frac` / `--test_frac`, `--test_eval_every`, `--device=cuda`.
@@ -245,7 +245,7 @@ This script loads the fine-tuned SELFormerMM multimodal backbone and produces pr
 **Binary classification example:**
 ```
 python3 predict.py \
-  --model_dir=/data/models/finetuned_models/classification/bbbp \
+  --model_dir=data/models/finetuned_models/classification/bbbp \
   --input_meta_csv=data/finetuning_datasets/classification/bbbp/bbbp.csv \
   --input_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
   --output_csv=data/finetuning_datasets/classification/bbbp/bbbp_predictions.csv \
@@ -259,7 +259,7 @@ python3 predict.py \
 **Multi-label example:**
 ```
 python3 predict.py \
-  --model_dir=/data/models/finetuned_models/multilabel/sider \
+  --model_dir=data/models/finetuned_models/multilabel/sider \
   --input_meta_csv=data/finetuning_datasets/multilabel/sider/sider.csv \
   --input_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
   --output_csv=data/finetuning_datasets/multilabel/sider/sider_predictions.csv \
@@ -272,7 +272,7 @@ python3 predict.py \
 **Regression example:**
 ```
 python3 predict.py \
-  --model_dir=/data/models/finetuned_models/regression/freesolv \
+  --model_dir=data/models/finetuned_models/regression/freesolv \
   --input_meta_csv=data/finetuning_datasets/regression/freesolv/freesolv.csv \
   --input_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
   --output_csv=data/finetuning_datasets/regression/freesolv/freesolv_predictions.csv \
