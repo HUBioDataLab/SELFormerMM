@@ -3,6 +3,8 @@
 <!-- omit in toc -->
 
 [![license](https://img.shields.io/badge/license-GPLv3-blue.svg)](http://www.gnu.org/licenses/)
+[![bioRxiv](https://img.shields.io/badge/bioRxiv-2026.03.17.712340v1-b31b1b.svg)](https://www.biorxiv.org/content/10.64898/2026.03.17.712340v1)
+[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-yellow.svg)](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM)
 
 Molecular representation learning is central to computational drug discovery, yet most models still rely on a single modality (e.g. sequences or graphs) and cannot easily unify complementary signals such as text and biological interaction networks. **SELFormerMM** addresses this gap as a unified multimodal framework: it integrates SELFIES encodings, 2D molecular graphs, natural-language descriptions, and knowledge-graph embeddings into a shared latent space, building on the transformer-based [SELFormer](https://iopscience.iop.org/article/10.1088/2632-2153/acdb30). Self-supervised pre-training is carried out on a large-scale multimodal dataset of approximately 3 million molecules.
 
