@@ -286,6 +286,7 @@ python3 predict.py \
 ```
 
 <br/>
+
 ## Citation
 
 Please refer to our preprint for more information. If you use the SELFormerMM method or the datasets provided in this repository, please cite this paper:
