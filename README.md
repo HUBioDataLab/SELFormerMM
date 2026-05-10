@@ -177,6 +177,15 @@ python3 train_pretraining.py \
 
 Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/finetuning_datasets).
 
+For each released fine-tuned task model, an optimized fine-tuning config is provided at:
+`data/models/finetuned/<task>/finetuning_optimized_config.json`
+
+You can run fine-tuning directly from one of these configs:
+```
+python3 train_finetuning.py \
+  --config=data/models/finetuned/bbbp/finetuning_optimized_config.json
+```
+
 **Binary classification example:**
 ```
 python3 train_finetuning.py \
@@ -186,12 +195,14 @@ python3 train_finetuning.py \
   --tokenizer_path=HUBioDataLab/SELFormer \
   --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=binary \
+  --label_column=p_np \
+  --num_labels=2 \
   --use_scaffold=1 \
-  --batch_size=8 \
+  --batch_size=32 \
   --max_len=128 \
-  --epochs=50 \
-  --backbone_lr=1e-5 \
-  --head_lr=1e-4 \
+  --epochs=25 \
+  --backbone_lr=5e-5 \
+  --head_lr=1e-5 \
   --weight_decay=0.1 \
   --checkpoint_every=25 \
   --save_dir=data/models/finetuned/bbbp
@@ -201,18 +212,19 @@ python3 train_finetuning.py \
 ```
 python3 train_finetuning.py \
   --dataset_meta_csv=data/finetuning_datasets/classification/sider/sider.csv \
-  --dataset_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
+  --dataset_embs_npz=data/finetuning_datasets/classification/sider/sider_embs.npz \
   --model_path=HUBioDataLab/SELFormer \
   --tokenizer_path=HUBioDataLab/SELFormer \
   --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=multilabel \
-  --use_scaffold=1 \
+  --num_labels=0 \
+  --use_scaffold=0 \
   --batch_size=8 \
   --max_len=128 \
-  --epochs=50 \
-  --backbone_lr=1e-5 \
-  --head_lr=1e-4 \
-  --weight_decay=0.1 \
+  --epochs=25 \
+  --backbone_lr=5e-5 \
+  --head_lr=5e-6 \
+  --weight_decay=0.001 \
   --checkpoint_every=25 \
   --save_dir=data/models/finetuned/sider
 ```
@@ -225,13 +237,15 @@ python3 train_finetuning.py \
   --tokenizer_path=HUBioDataLab/SELFormer \
   --pretrained_multimodal_dir=data/models/SELFormerMM \
   --task_type=regression \
-  --use_scaffold=1 \
-  --batch_size=8 \
+  --label_column=freesolv \
+  --num_labels=1 \
+  --use_scaffold=0 \
+  --batch_size=4 \
   --max_len=128 \
-  --epochs=50 \
-  --backbone_lr=1e-5 \
-  --head_lr=1e-4 \
-  --weight_decay=0.1 \
+  --epochs=25 \
+  --backbone_lr=5e-5 \
+  --head_lr=2e-4 \
+  --weight_decay=0.001 \
   --checkpoint_every=25 \
   --save_dir=data/models/finetuned/freesolv
 ```
