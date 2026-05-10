@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Iterable, Optional
 
 import torch
@@ -67,17 +68,54 @@ class DMGI(nn.Module):
         return loss
 
 
+def _strip_module_prefix(state: dict) -> dict:
+    if not state or not any(str(k).startswith("module.") for k in state):
+        return state
+    return {str(k).replace("module.", "", 1): v for k, v in state.items()}
+
+
+def infer_num_relations_from_state(state: dict) -> int:
+    """Number of GCN relation heads in a saved DMGI state_dict."""
+    state = _strip_module_prefix(state)
+    ids: set[int] = set()
+    for k in state:
+        m = re.match(r"^convs\.(\d+)\.", k)
+        if m:
+            ids.add(int(m.group(1)))
+    if not ids:
+        raise ValueError("Could not infer num_relations: no convs.N.* keys in checkpoint.")
+    return max(ids) + 1
+
+
 def load_dmgi_model(
     checkpoint_path: str,
     num_nodes: int,
     in_channels: int,
     out_channels: int,
-    num_relations: int,
+    num_relations: Optional[int] = None,
     map_location: Optional[str] = "cpu",
 ) -> DMGI:
-    """Load a pretrained DMGI checkpoint."""
+    """
+    Load a pretrained DMGI checkpoint.
+
+    If ``num_relations`` is None, it is inferred from the checkpoint (must match
+    how the model was trained). HeteroData may list more edge types; only the
+    first ``num_relations`` edge tensors should be passed to ``forward`` (same
+    ordering as at training time).
+    """
+    raw = torch.load(checkpoint_path, map_location=map_location)
+    state = _strip_module_prefix(raw)
+    inferred = infer_num_relations_from_state(state)
+    if num_relations is not None and num_relations != inferred:
+        import warnings
+
+        warnings.warn(
+            f"HeteroData suggests {num_relations} edge types but checkpoint has "
+            f"{inferred} DMGI relation heads; using {inferred} from checkpoint.",
+            stacklevel=2,
+        )
+    num_relations = inferred
     model = DMGI(num_nodes, in_channels, out_channels, num_relations)
-    state = torch.load(checkpoint_path, map_location=map_location)
-    model.load_state_dict(state)
+    model.load_state_dict(state, strict=True)
     model.eval()
     return model

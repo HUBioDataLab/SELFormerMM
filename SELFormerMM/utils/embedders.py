@@ -110,16 +110,26 @@ class KGEmbedder:
             num_nodes=self.num_nodes,
             in_channels=self.in_channels,
             out_channels=self.out_channels,
-            num_relations=self.num_relations,
+            num_relations=None,
             map_location=self.device,
         ).to(self.device)
 
     def embed(
         self, node_features: torch.Tensor, edge_indices: Iterable[torch.Tensor]
     ) -> np.ndarray:
+        n_rel = len(self.model.convs)
+        edges = list(edge_indices)
+        if len(edges) < n_rel:
+            raise ValueError(
+                f"DMGI checkpoint uses {n_rel} relations; heterodata has only {len(edges)} "
+                "edge_index tensors. Check graph construction."
+            )
+        edges = edges[:n_rel]
+        dev = next(self.model.parameters()).device
+        edges = [e.to(dev) if torch.is_tensor(e) else e for e in edges]
         self.model.eval()
         with torch.no_grad():
-            pos_hs, _, _ = self.model(node_features.to(self.device), edge_indices)
+            pos_hs, _, _ = self.model(node_features.to(dev), edges)
         embeddings = torch.stack(pos_hs, dim=0).mean(dim=0)
         return embeddings.detach().cpu().numpy().astype(np.float32)
 
