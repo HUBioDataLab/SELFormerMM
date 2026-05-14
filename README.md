@@ -18,7 +18,7 @@ Molecular representation learning is central to computational drug discovery, ye
 
 - [The Architecture of SELFormerMM](#the-architecture-of-selformermm)
 - [Getting Started](#getting-started)
-- [Data pipeline overview](#data-pipeline-overview)
+- [Dataset](#dataset)
 - [Generating SELFIES](#generating-selfies)
 - [Generating modality embeddings](#generating-modality-embeddings)
   - [Graph (UniMol)](#graph-unimol)
@@ -63,7 +63,9 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
 <br/>
 
-## Data pipeline overview
+## Dataset
+
+**Data and model download.** Pretraining and fine-tuning datasets (including all raw modalities), single-modality embedding files (`graph` / `text` / `kg`), the pretrained SELFormerMM multimodal checkpoint, and fine-tuned task checkpoints are available from the Hugging Face dataset: **[HUBioDataLab/SELFormerMM](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM)**.
 
 1. **SELFIES** — From SMILES CSV: `generate_selfies.py`.
 2. **Graph embeddings** — Same row order as your molecule table: `generate_graph_embeddings.py` → `graph_embeddings.npy`.
@@ -71,8 +73,6 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 4. **KG embeddings** — Compound nodes aligned by row with pre-trained DMGI: `generate_kg_embeddings.py` → `kg_embeddings.npy`.
 5. **Pre-train** — Pretraining metadata CSV (selfies column) + three `.npy` files (same length): `train_pretraining.py`.
 6. **Fine-tune** — One meta CSV (`smiles`, `selfies`, labels) + one NPZ bundling three modalities (graph, text, kg):
-
-**Data and model download.** Pretraining and fine-tuning datasets (including all raw modalities), single-modality embedding files (`graph` / `text` / `kg`), the pretrained SELFormerMM multimodal checkpoint, and fine-tuned task checkpoints are available from the Hugging Face dataset: **[HUBioDataLab/SELFormerMM](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM)**.
 
 <br/>
 
