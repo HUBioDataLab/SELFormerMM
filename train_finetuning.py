@@ -100,11 +100,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save_dir", required=True)
 
     argv = sys.argv[1:]
-    config_path = None
-    if "--config" in argv:
-        i = argv.index("--config")
-        config_path = argv[i + 1] if i + 1 < len(argv) else None
-        argv = [a for j, a in enumerate(argv) if j != i and j != i + 1]
+    config_path: str | None = None
+    stripped: list[str] = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--config":
+            if i + 1 >= len(argv):
+                raise ValueError("--config requires a path argument.")
+            config_path = argv[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--config="):
+            config_path = arg.split("=", 1)[1]
+            if not config_path:
+                raise ValueError("--config requires a path argument.")
+            i += 1
+            continue
+        stripped.append(arg)
+        i += 1
+    argv = stripped
     if config_path:
         cfg = _load_config(config_path)
         injected = []
@@ -257,6 +272,17 @@ def _prc_auc(y_true_01: np.ndarray, y_score: np.ndarray) -> float:
         return float(np.trapz(precision, recall))
 
 
+def _format_metrics(metrics: dict[str, float], *, prefix: str = "") -> str:
+    """Format metric dict for logging (skips NaNs)."""
+    parts: list[str] = []
+    for k, v in metrics.items():
+        if not isinstance(v, float) or np.isnan(v):
+            continue
+        key = f"{prefix}{k}" if prefix else k
+        parts.append(f"{key}={v:.4f}")
+    return " ".join(parts)
+
+
 def _binary_prf(y_true_01: np.ndarray, y_pred_01: np.ndarray) -> dict[str, float]:
     y = np.asarray(y_true_01).astype(np.int64)
     p = np.asarray(y_pred_01).astype(np.int64)
@@ -366,13 +392,17 @@ def _evaluate(
         mask = ~np.isnan(y_true)
         y01 = y_true[mask].astype(np.int64)
         if logits_np.ndim == 2 and logits_np.shape[1] == 2:
+            exp = np.exp(logits_np - logits_np.max(axis=1, keepdims=True))
+            probs = (exp / exp.sum(axis=1, keepdims=True))[:, 1]
             y_pred = np.argmax(logits_np, axis=1).astype(np.int64)[mask]
+            y_score = probs[mask]
         else:
             probs = _sigmoid(logits_np.reshape(-1))
             y_pred = (probs >= 0.5).astype(np.int64)[mask]
+            y_score = probs[mask]
         out.update(_binary_prf(y01, y_pred))
-        out["roc-auc"] = _auroc(y01, y_pred.astype(np.float64))
-        out["prc-auc"] = _prc_auc(y01, y_pred.astype(np.float64))
+        out["roc-auc"] = _auroc(y01, y_score)
+        out["prc-auc"] = _prc_auc(y01, y_score)
         return out
 
     probs = _sigmoid(logits_np)
@@ -381,9 +411,10 @@ def _evaluate(
     mask = ~np.isnan(y_true)
     y01 = y_true[mask].astype(np.int64)
     p01 = y_pred[mask].astype(np.int64)
+    y_score = probs[mask]
     out.update(_binary_prf(y01, p01))
-    out["roc-auc"] = _auroc(y01, p01.astype(np.float64))
-    out["prc-auc"] = _prc_auc(y01, p01.astype(np.float64))
+    out["roc-auc"] = _auroc(y01, y_score.reshape(-1))
+    out["prc-auc"] = _prc_auc(y01, y_score.reshape(-1))
     return out
 
 def _infer_label_column(df: pd.DataFrame, task_type: str) -> str:
@@ -727,10 +758,27 @@ def main() -> None:
     for epoch in range(args.epochs):
         epoch_t0 = time.time()
         train_loss = finetuner.train_epoch(train_loader)
-        val_loss = finetuner.validate(val_loader)
-        print(
-            f"[finetune] epoch {epoch + 1}/{args.epochs}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} time={time.time()-epoch_t0:.1f}s tod={datetime.now().strftime('%H:%M')}"
+        train_metrics = _evaluate(backbone, head, train_loader, args.task_type, device)
+        val_metrics = _evaluate(backbone, head, val_loader, args.task_type, device)
+        val_loss = val_metrics["loss"]
+        train_metric_str = _format_metrics(
+            {k: v for k, v in train_metrics.items() if k != "loss"}, prefix="train_"
         )
+        val_metric_str = _format_metrics(
+            {k: v for k, v in val_metrics.items() if k != "loss"}, prefix="val_"
+        )
+        epoch_parts = [
+            f"[finetune] epoch {epoch + 1}/{args.epochs}:",
+            f"train_loss={train_loss:.4f}",
+            f"val_loss={val_loss:.4f}",
+        ]
+        if train_metric_str:
+            epoch_parts.append(train_metric_str)
+        if val_metric_str:
+            epoch_parts.append(val_metric_str)
+        epoch_parts.append(f"time={time.time()-epoch_t0:.1f}s")
+        epoch_parts.append(f"tod={datetime.now().strftime('%H:%M')}")
+        print(" ".join(epoch_parts))
         # Periodic test evaluation and checkpoint saving
         should_eval_test = (
             test_loader is not None
