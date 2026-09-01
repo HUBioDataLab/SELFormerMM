@@ -303,9 +303,21 @@ python3 predict.py \
 
 ## Citation
 
-Please refer to our preprint for more information. If you use the SELFormerMM method or the datasets provided in this repository, please cite this paper:
+Please refer to our article for more information. If you use the SELFormerMM method or the datasets provided in this repository, please cite this paper:
 
-Ulusoy, E., Bostancı, Ş., Deniz, B. E., & Doğan, T. (2026). SELFormerMM: multimodal molecular representation learning via SELFIES, structure, text, and knowledge graph integration (p. 2026.03.17.712340). bioRxiv. https://doi.org/10.64898/2026.03.17.712340
+```bibtex
+@article{ulusoy2026selformermm,
+  title   = {SELFormerMM: multimodal molecular representation learning via SELFIES,
+             structure, text, and knowledge graph integration},
+  author  = {Ulusoy, Erva and Bostanc{\i}, {\c{S}}evval and Deniz, Bora Engin and Do{\u{g}}an, Tunca},
+  journal = {Bioinformatics},
+  volume  = {42},
+  number  = {Supplement\_2},
+  pages   = {btag451},
+  year    = {2026},
+  doi     = {10.1093/bioinformatics/btag451}
+}
+```
 
 ## License
 
