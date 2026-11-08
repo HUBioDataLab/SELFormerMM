@@ -28,7 +28,10 @@ Molecular representation learning is central to computational drug discovery, ye
 - [Training and evaluating models](#training-and-evaluating-models)
   - [Pre-training](#pre-training)
   - [Fine-tuning](#fine-tuning)
+    - [Fine-tuning from a released config](#fine-tuning-from-a-released-config)
 - [Producing predictions with fine-tuned models](#producing-predictions-with-fine-tuned-models)
+- [Scoring fine-tuned models](#scoring-fine-tuned-models)
+- [Citation](#citation)
 - [License](#license)
 
 <br/>
@@ -177,14 +180,47 @@ python3 train_pretraining.py \
 
 Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/finetuning_datasets).
 
-For each released fine-tuned task model, an optimized fine-tuning config is provided at:
-`data/models/finetuned/<task>/finetuning_optimized_config.json`
+#### Fine-tuning from a released config
 
-You can run fine-tuning directly from one of these configs:
+Every released task ships the exact hyperparameters that produced its checkpoints, so you do not
+have to re-derive the flags. The configs live at
+`data/models/finetuned/<task>/finetuning_optimized_config.json` in this repository, and each
+published seed carries its own copy at
+`models/finetuned/<task>/seed_<n>/finetuning_optimized_config.json` in the
+[dataset repository](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned).
+The two differ only in the `seed` field.
+
+A config records the dataset paths, the split settings (`use_scaffold`, `seed`,
+`train_frac`/`val_frac`/`test_frac`) and the optimization settings (batch size, epochs, learning
+rates, weight decay). Run fine-tuning directly from one:
+
 ```
 python3 train_finetuning.py \
-  --config=data/models/finetuned/bbbp/finetuning_optimized_config.json
+  --config=data/models/finetuned/bbbp/finetuning_optimized_config.json \
+  --save_dir=runs/bbbp
 ```
+
+Any flag on the command line overrides the config, which is how you change one setting while
+keeping the rest fixed:
+
+```
+python3 train_finetuning.py \
+  --config=data/models/finetuned/bbbp/finetuning_optimized_config.json \
+  --seed=123 --save_dir=runs/bbbp_seed123
+```
+
+The paths inside a config are relative to this repository's root, with the dataset mounted at
+`data/`. Download it there and everything resolves:
+
+```
+huggingface-cli download HUBioDataLab/SELFormerMM --repo-type dataset \
+  --include "models/SELFormerMM/*" "finetuning_datasets/classification/bbbp/*" \
+  --local-dir ./data
+```
+
+Training writes two checkpoints into `--save_dir`: `best_model.pt`, the epoch with the best
+validation metric, and `model.pt`, the final epoch. `best_metrics.json` records which epoch was
+selected and its validation and test metrics. Pass `--save_best_val=0` to skip the former.
 
 **Binary classification example:**
 ```
@@ -256,12 +292,12 @@ Useful flags: `--config=finetune.json` (inject defaults), `--save_split_csvs=dir
 
 ## Producing predictions with fine-tuned models
 
-This script loads the fine-tuned SELFormerMM multimodal backbone and produces predictions on a new dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets and our finetuned models can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned).
+This script loads the fine-tuned SELFormerMM multimodal backbone and produces predictions on a new dataset using the following script. Inputs are a task CSV (`<task>.csv`) with `selfies`, `smiles`, and label column(s) and (`<task>_embs.npz`) file that contains the single modality embeddings. Ready-to-use datasets and our finetuned models can be found [here](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned). Three seeds are published per task, so `--model_dir` points at one seed's directory (`<task>/seed_42`, `seed_123` or `seed_3407`).
 
 **Binary classification example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned/bbbp \
+  --model_dir=data/models/finetuned/bbbp/seed_42 \
   --input_meta_csv=data/finetuning_datasets/classification/bbbp/bbbp.csv \
   --input_embs_npz=data/finetuning_datasets/classification/bbbp/bbbp_embs.npz \
   --output_csv=data/finetuning_datasets/classification/bbbp/bbbp_predictions.csv \
@@ -275,7 +311,7 @@ python3 predict.py \
 **Multi-label example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned/sider \
+  --model_dir=data/models/finetuned/sider/seed_42 \
   --input_meta_csv=data/finetuning_datasets/multilabel/sider/sider.csv \
   --input_embs_npz=data/finetuning_datasets/multilabel/sider/sider_embs.npz \
   --output_csv=data/finetuning_datasets/multilabel/sider/sider_predictions.csv \
@@ -288,7 +324,7 @@ python3 predict.py \
 **Regression example:**
 ```
 python3 predict.py \
-  --model_dir=data/models/finetuned/freesolv \
+  --model_dir=data/models/finetuned/freesolv/seed_42 \
   --input_meta_csv=data/finetuning_datasets/regression/freesolv/freesolv.csv \
   --input_embs_npz=data/finetuning_datasets/regression/freesolv/freesolv_embs.npz \
   --output_csv=data/finetuning_datasets/regression/freesolv/freesolv_predictions.csv \
@@ -298,6 +334,46 @@ python3 predict.py \
   --max_len=512 \
   --output_id_column=smiles
 ```
+
+<br/>
+
+## Scoring fine-tuned models
+
+`evaluate.py` rebuilds the exact train/val/test
+split a checkpoint was trained with, scores the model on it, and prints the metrics — ROC-AUC and
+PRC-AUC for classification, RMSE/MSE/MAE for regression.
+
+Three seeds (42, 123, 3407) are published per task. Point `--model_dir` at a task directory to score
+all of them and report the mean ± standard deviation, which is the form the paper's table is stated in:
+
+```
+python3 evaluate.py \
+  --model_dir=data/models/finetuned/bbbp \
+  --config=data/models/finetuned/bbbp/finetuning_optimized_config.json \
+  --device=cuda
+```
+
+```
+[evaluate] 3 seeds: 42=0.9484  123=0.9264  3407=0.9605
+[evaluate] roc-auc = 0.9451 +/- 0.0141  (mean +/- std over seeds)
+```
+
+To score one checkpoint, pass that seed's config and leave `--model_dir` out:
+
+```
+python3 evaluate.py \
+  --config=data/models/finetuned/bbbp/seed_123/finetuning_optimized_config.json \
+  --device=cuda
+```
+
+* __--model_dir__ — Task directory (scores every `seed_<n>` subdirectory) or a single checkpoint
+  directory. Defaults to the directory holding `--config`.
+* __--model_file__ — Weights file inside the checkpoint directory; `model.pt` by default,
+  `best_model.pt` for the validation-selected epoch of your own run.
+* __--split__ — `test` (default), `val` or `train`.
+* __--output_json__ — Write the per-seed results and the aggregate to a file.
+* __--device__ — Pass `cuda` explicitly. Without it the script falls back to CPU when a GPU cannot
+  be initialized, which on the larger tasks turns minutes into hours.
 
 <br/>
 
