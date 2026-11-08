@@ -16,8 +16,30 @@ huggingface-cli download HUBioDataLab/SELFormerMM pretraining_datasets \
 |------|------|
 | `pretraining_datasets/` | Multimodal pretraining: raw modality CSV + aligned `graph` / `text` / `kg` embedding files + KG `HeteroData`. |
 | `finetuning_datasets/` | MoleculeNet benchmark datasets: `{task}.csv` + `{task}_embs.npz` (`graph`, `text`, `kg`). |
-| `models/` | pretrained SELFormerMM model + DMGI checkpoint for KG embedding. |
-| `finetuned_models/` | fine-tuned molecular property prediction task checkpoints |
+| `models/SELFormerMM/` | Pretrained multimodal backbone: config, tokenizer, `pytorch_model.bin`. |
+| `models/DMGI/` | DMGI checkpoint used to produce the KG embeddings. |
+| `models/finetuned/` | Fine-tuned task checkpoints, three seeds per task, each with the hyperparameter config that produced it. |
+
+### Fine-tuning configs
+
+Each published checkpoint ships a `finetuning_optimized_config.json` next to its weights. It records
+the dataset paths, the split settings and the optimization settings that produced that
+checkpoint. Pass it to `train_finetuning.py` to retrain the task, or to `evaluate.py` to reproduce the checkpoint's score:
+
+```bash
+python3 train_finetuning.py \
+  --config=data/models/finetuned/bbbp/seed_42/finetuning_optimized_config.json \
+  --save_dir=runs/bbbp
+
+python3 evaluate.py \
+  --model_dir=data/models/finetuned/bbbp \
+  --config=data/models/finetuned/bbbp/seed_42/finetuning_optimized_config.json \
+  --device=cuda
+```
+
+The three seeds' configs are identical except for the `seed` field. That field also fixes the split,
+so a checkpoint has to be scored with its own config; `evaluate.py` takes the seed from the
+`seed_<n>` directory name and rejects a contradicting `--seed`.
 
 
 ## Expected directory tree (`data/`)
@@ -43,11 +65,27 @@ data/
 │       ├── freesolv/
 │       ├── lipo/
 │       └── pdbbind_full/
-├── models/
-│   ├── DMGI/
-│   │   └── dmgi_model.pt
-│   └── SELFormerMM/       → config, tokenizer, pytorch_model.bin (weights)
-└── finetuned_models/      → per-task fine-tuned checkpoints (bbbp, esol, …)
+└── models/
+    ├── DMGI/
+    │   └── dmgi_model.pt
+    ├── SELFormerMM/       → config, tokenizer, pytorch_model.bin (weights)
+    └── finetuned/
+        ├── bace/
+        │   ├── seed_42/   → model.pt, finetuning_optimized_config.json, tokenizer
+        │   ├── seed_123/
+        │   └── seed_3407/
+        ├── bbbp/
+        ├── esol/
+        ├── freesolv/
+        ├── hiv/
+        ├── lipo/
+        ├── pdbbind_full/
+        ├── sider/
+        └── tox21/
 ```
+
+Three seeds (42, 123, 3407) are published per task so that the mean ± standard deviation reported in
+the paper can be recomputed rather than approximated from a single checkpoint. There is no default
+or "recommended" seed; any one of them is a working model.
 
 
