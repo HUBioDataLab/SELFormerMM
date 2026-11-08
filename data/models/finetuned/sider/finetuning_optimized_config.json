@@ -1,0 +1,23 @@
+{
+  "dataset_meta_csv": "data/finetuning_datasets/classification/sider/sider.csv",
+  "dataset_embs_npz": "data/finetuning_datasets/classification/sider/sider_embs.npz",
+  "model_path": "HUBioDataLab/SELFormer",
+  "tokenizer_path": "HUBioDataLab/SELFormer",
+  "pretrained_multimodal_dir": "data/models/SELFormerMM",
+  "task_type": "multilabel",
+  "label_column": null,
+  "num_labels": 0,
+  "use_scaffold": 0,
+  "train_frac": 0.8,
+  "val_frac": 0.1,
+  "test_frac": 0.1,
+  "batch_size": 16,
+  "max_len": 128,
+  "epochs": 50,
+  "backbone_lr": 2e-5,
+  "head_lr": 5e-5,
+  "weight_decay": 0.01,
+  "checkpoint_every": 0,
+  "test_eval_every": 1,
+  "save_best_val": 1
+}
