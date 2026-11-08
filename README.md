@@ -183,14 +183,16 @@ Use the pretrained SELFormerMM multimodal backbone to fine-tune on your own data
 #### Fine-tuning from a released config
 
 Every released task ships the exact hyperparameters that produced its checkpoints, so you do not
-have to re-derive the flags. The configs live at
-`data/models/finetuned/<task>/finetuning_optimized_config.json` in this repository, and each
-published seed carries its own copy at
-`models/finetuned/<task>/seed_<n>/finetuning_optimized_config.json` in the
-[dataset repository](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned).
-The two differ only in the `seed` field.
+have to re-derive the flags. There are two forms:
 
-A config records the dataset paths, the split settings (`use_scaffold`, `seed`,
+- `data/models/finetuned/<task>/finetuning_optimized_config.json` in this repository — the task's
+  hyperparameters with **no seed pinned**, so `--seed` is yours to choose (42 if you leave it out).
+- `models/finetuned/<task>/seed_<n>/finetuning_optimized_config.json` in the
+  [dataset repository](https://huggingface.co/datasets/HUBioDataLab/SELFormerMM/tree/main/models/finetuned)
+  — the same values plus the `seed` of the checkpoint sitting next to it. Use these to reproduce a
+  published checkpoint, since the seed also fixes the split.
+
+A config records the dataset paths, the split settings (`use_scaffold`,
 `train_frac`/`val_frac`/`test_frac`) and the optimization settings (batch size, epochs, learning
 rates, weight decay). Run fine-tuning directly from one:
 

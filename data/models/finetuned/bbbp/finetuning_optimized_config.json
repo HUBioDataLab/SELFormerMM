@@ -8,7 +8,6 @@
   "label_column": "p_np",
   "num_labels": 2,
   "use_scaffold": 1,
-  "seed": 42,
   "train_frac": 0.8,
   "val_frac": 0.1,
   "test_frac": 0.1,

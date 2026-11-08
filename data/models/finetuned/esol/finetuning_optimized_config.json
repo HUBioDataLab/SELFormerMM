@@ -8,7 +8,6 @@
   "label_column": "measured log solubility in mols per litre",
   "num_labels": 1,
   "use_scaffold": 0,
-  "seed": 3407,
   "train_frac": 0.8,
   "val_frac": 0.1,
   "test_frac": 0.1,
