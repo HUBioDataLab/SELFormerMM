@@ -20,6 +20,7 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer
 from SELFormerMM.finetuner import Finetuner
 from SELFormerMM.models.downstream_heads import ClassificationHead, RegressionHead
 from SELFormerMM.models.multimodal_roberta import MultimodalRoberta
+from SELFormerMM.utils.common import set_seed
 from SELFormerMM.utils.datasets import FinetuneDataset, MultimodalCollator
 
 
@@ -95,6 +96,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Evaluate on test split every N epochs (0 disables periodic test evaluation).",
+    )
+    parser.add_argument(
+        "--save_best_val",
+        type=int,
+        default=1,
+        help="Save best_model.pt whenever the validation metric improves (1 enables, 0 disables). "
     )
     parser.add_argument("--device", default=None)
     parser.add_argument("--save_dir", required=True)
@@ -489,6 +496,8 @@ def main() -> None:
 
     args = parse_args()
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    # Seed python/numpy/torch RNGs so head init, dropout and batch order are reproducible.
+    set_seed(args.seed)
     t0 = time.time()
     print("[finetune] starting")
     print(
@@ -652,7 +661,11 @@ def main() -> None:
     )
 
     train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=MultimodalCollator()
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=MultimodalCollator(),
+        generator=torch.Generator().manual_seed(args.seed),
     )
     val_loader = DataLoader(
         val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=MultimodalCollator()
@@ -754,7 +767,13 @@ def main() -> None:
     # Track best test metric for checkpoint saving
     best_test_metric: Optional[float] = None
     best_epoch: int = 0
-    
+
+    # Track best validation metric for best_model.pt
+    val_metric_name = "roc-auc" if args.task_type in {"binary", "multilabel"} else "rmse"
+    higher_is_better = args.task_type in {"binary", "multilabel"}
+    best_val_metric: Optional[float] = None
+    best_val_record: Optional[dict[str, Any]] = None
+
     for epoch in range(args.epochs):
         epoch_t0 = time.time()
         train_loss = finetuner.train_epoch(train_loader)
@@ -788,8 +807,10 @@ def main() -> None:
             )
         )
         
+        test_metrics_this_epoch: Optional[dict[str, float]] = None
         if should_eval_test:
             metrics = _evaluate(backbone, head, test_loader, args.task_type, device)
+            test_metrics_this_epoch = metrics
             metrics_str = " ".join(
                 [
                     f"{k}={v:.4f}"
@@ -826,6 +847,50 @@ def main() -> None:
                     metric_name = "roc-auc" if args.task_type in {"binary", "multilabel"} else "rmse"
                     if best_test_metric is not None:
                         print(f"[finetune] checkpoint skipped (current {metric_name}={current_metric:.4f} vs best={best_test_metric:.4f} at epoch {best_epoch})")
+
+        # Best-validation checkpoint. 
+        if args.save_best_val:
+            current_val = val_metrics.get(val_metric_name)
+            if current_val is not None and not np.isnan(current_val):
+                improved = best_val_metric is None or (
+                    current_val > best_val_metric
+                    if higher_is_better
+                    else current_val < best_val_metric
+                )
+                if improved:
+                    best_val_metric = current_val
+                    best_val_record = {
+                        "best_val_epoch": epoch + 1,
+                        "selection_metric": val_metric_name,
+                        "seed": args.seed,
+                        "val_metrics": {
+                            k: float(v) for k, v in val_metrics.items() if isinstance(v, float)
+                        },
+                        "test_metrics_at_best_val": (
+                            {
+                                k: float(v)
+                                for k, v in test_metrics_this_epoch.items()
+                                if isinstance(v, float)
+                            }
+                            if test_metrics_this_epoch is not None
+                            else None
+                        ),
+                    }
+                    torch.save(
+                        {"backbone": backbone.state_dict(), "head": head.state_dict()},
+                        save_dir / "best_model.pt",
+                    )
+                    config.save_pretrained(save_dir)
+                    tokenizer.save_pretrained(save_dir)
+                    print(
+                        f"[finetune] saved best_model.pt (val_{val_metric_name}={current_val:.4f}, "
+                        f"epoch {epoch + 1}): {save_dir / 'best_model.pt'}"
+                    )
+
+    if best_val_record is not None:
+        with open(save_dir / "best_metrics.json", "w", encoding="utf-8") as fh:
+            json.dump(best_val_record, fh, indent=2)
+        print(f"[finetune] wrote {save_dir / 'best_metrics.json'}")
 
     if test_loader is not None:
         print("[finetune] final evaluation on test split...")
